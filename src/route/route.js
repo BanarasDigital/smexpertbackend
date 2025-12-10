@@ -77,6 +77,8 @@ import validateUser from "../middleware/validateUser.middleware.js";
 
 import groupSchema from "../schema/groupConversationSchema/group.conversation.schema.js";
 import { userLoginSchema, userRegisterSchema } from "../schema/user.schema.js";
+import { addNote, bulkAssign, createLead, deleteLead, deleteNote, editNote, exportLeads, exportLeadTemplate, filterLeads, getLeadById, getLeadNotes, getLeads, getLeadsByUser, importLeads, updateFollowUp, updateLead, updateLeadStatus } from "../controlers/lead.controller.js";
+import excelUpload from "../middleware/excelUpload.js";
 
 const routeFunc = (app) => {
   /* Auth + Session (PUBLIC) */
@@ -221,6 +223,28 @@ const routeFunc = (app) => {
     adminUpdatePayment
   );
   app.delete("/payments/:id([0-9a-fA-F]{24})", requireUser, deletePayment);
+  // Lead
+  app.post("/create-lead", requireUser, createLead);
+  app.get("/get-lead", requireUser, getLeads);
+  app.get("/:id", requireUser, getLeadById);
+  app.put("/:id", requireUser, updateLead);
+  app.delete("/:id", requireUser, deleteLead);
+  app.put("/:id/followup", requireUser, updateFollowUp);
+  app.get("/lead/export/template", requireUser, exportLeadTemplate);
+  app.get("/lead/export", requireUser, exportLeads);
+  app.post("/lead/import", requireUser, excelUpload.single("file"), importLeads);
+  app.get("/lead/filter", requireUser, filterLeads);
+  app.post("/lead/bulk-assign", requireUser, bulkAssign);
+  app.get("/lead/user/:userId", requireUser, getLeadsByUser);
+  app.post("/lead/:id/notes", requireUser, addNote);
+  app.get("/lead/:id/notes", requireUser, getLeadNotes);
+  app.put("/lead/:leadId/notes/:noteId", requireUser, editNote);
+  app.delete("/lead/:leadId/notes/:noteId", requireUser, deleteNote);
+  app.put("/lead/:id/status", requireUser, updateLeadStatus);
+
+
+
+
 };
 
 export default routeFunc;
