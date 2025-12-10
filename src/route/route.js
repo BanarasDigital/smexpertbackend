@@ -23,7 +23,7 @@ import {
   sendGroupMessage,
   getGroupMessages,
   getGroupConversationController,
-} from "../controlers/groupControler/groups.controler.js";
+} from "../controllers/groupControler/groups.controler.js";
 
 import {
   uploadChatAny,
@@ -37,8 +37,8 @@ import {
   getChats,
   getUserConversation,
   sendMessage,
-} from "../controlers/messageControler/chats.controlers.js";
-import { getUserConversations } from "../controlers/messageControler/conversiation.controler.js";
+} from "../controllers/messageControler/chats.controlers.js";
+import { getUserConversations } from "../controllers/messageControler/conversiation.controler.js";
 
 import {
   adminUpdatePayment,
@@ -46,16 +46,16 @@ import {
   deletePayment,
   getPayment,
   listPayments,
-} from "../controlers/Payment/Payment.js";
+} from "../controllers/Payment/Payment.js";
 
 import {
   createUserSessionHandler,
   getSessionHandler,
   reIssueAccessTokenSessionHandler,
   updateSessionHandler,
-} from "../controlers/session.controlers.js";
+} from "../controllers/session.controlers.js";
 
-import { saveToken, sendByProjectId, resetBadge } from "../controlers/notifications.js";
+import { saveToken, sendByProjectId, resetBadge } from "../controllers/notifications.js";
 import userRegisterControler, {
   getUsersByBranchController,
   getUserByIdController,
@@ -67,17 +67,17 @@ import userRegisterControler, {
   forgotPassword,
   resetPassword,
   getUserStatus,
-} from "../controlers/user.controlers.js";
+} from "../controllers/user.controlers.js";
 
-import { updateProfileController } from "../controlers/user.profile.controllers.js";
-import { updateGroupControllers } from "../controlers/groupControler/updateGroupController.js";
+import { updateProfileController } from "../controllers/user.profile.controllers.js";
+import { updateGroupControllers } from "../controllers/groupControler/updateGroupController.js";
 import { authGuard, requireAdmin } from "../middleware/auth.middleware.js";
 import requireUser from "../middleware/require.user.js";
 import validateUser from "../middleware/validateUser.middleware.js";
 
 import groupSchema from "../schema/groupConversationSchema/group.conversation.schema.js";
 import { userLoginSchema, userRegisterSchema } from "../schema/user.schema.js";
-import { addNote, bulkAssign, createLead, deleteLead, deleteNote, editNote, exportLeads, exportLeadTemplate, filterLeads, getLeadById, getLeadNotes, getLeads, getLeadsByUser, importLeads, updateFollowUp, updateLead, updateLeadStatus } from "../controlers/lead.controller.js";
+import { addNote, bulkAssign, createLead, deleteLead, deleteNote, editNote, exportLeads, exportLeadTemplate, filterLeads, getLeadById, getLeadNotes, getLeads, getLeadsByUser, importLeads, updateFollowUp, updateLead, updateLeadStatus } from "../controllers/lead.controller.js";
 import excelUpload from "../middleware/excelUpload.js";
 
 const routeFunc = (app) => {
