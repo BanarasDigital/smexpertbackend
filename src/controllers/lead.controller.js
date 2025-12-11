@@ -431,118 +431,6 @@ export async function exportLeadTemplate(req, res) {
     res.status(500).json({ success: false, message: err.message });
   }
 }
-export async function importUserLeads(req, res) {
-  try {
-    const { branchId, userId } = req.params;
-
-    if (!branchId || !userId) {
-      return res.status(400).json({
-        success: false,
-        message: "Branch ID and User ID are required.",
-      });
-    }
-
-    if (!req.file || !req.file.buffer) {
-      return res.status(400).json({
-        success: false,
-        message: "Excel file required",
-      });
-    }
-
-    // LOAD WORKBOOK
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
-    const sheet = workbook.worksheets[0];
-
-    if (!sheet) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Excel format",
-      });
-    }
-
-    // READ HEADERS
-    const headers = [];
-    sheet.getRow(1).eachCell((cell, colNumber) => {
-      headers[colNumber] = String(cell.value || "").trim();
-    });
-
-    let imported = 0;
-    let errors = [];
-
-    // PROCESS ROWS
-    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
-      const row = sheet.getRow(rowNumber);
-
-      const rowData = {};
-      row.eachCell((cell, colNumber) => {
-        const header = headers[colNumber];
-        rowData[header] = cell.value;
-      });
-
-      // REQUIRED FIELDS
-      if (!rowData.name || !rowData.phone || !rowData.leadSource || !rowData.segment) {
-        errors.push({ row: rowNumber, error: "Missing required fields" });
-        continue;
-      }
-
-      const lead = {
-        personalInfo: {
-          name: rowData.name,
-          email: rowData.email,
-          phone: rowData.phone,
-          alternatePhone: rowData.alternatePhone,
-          city: rowData.city,
-          state: rowData.state,
-          country: rowData.country,
-          pincode: rowData.pincode,
-        },
-
-        leadSource: rowData.leadSource,
-        segment: rowData.segment,
-
-        investmentSize: {
-          amount: rowData.investmentAmount || 0,
-          currency: rowData.investmentCurrency || "INR",
-          remark: rowData.investmentRemark || "",
-        },
-
-        status: rowData.status || "new",
-        priority: rowData.priority || "medium",
-
-        // 🔥 ASSIGN BRANCH & USER FROM PARAMS
-        branch: branchId,
-        assignedTo: userId,
-
-        tags: rowData.tags
-          ? String(rowData.tags).split(",").map((t) => t.trim())
-          : [],
-
-        followUpDate: rowData.followUpDate ? new Date(rowData.followUpDate) : null,
-
-        createdBy: req.user._id,
-      };
-
-      try {
-        await LeadModel.create(lead);
-        imported++;
-      } catch (err) {
-        errors.push({ row: rowNumber, error: err.message });
-      }
-    }
-
-    return res.json({
-      success: true,
-      imported,
-      failed: errors.length,
-      errors,
-    });
-
-  } catch (err) {
-    console.log("IMPORT ERROR:", err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-}
 
 export async function exportLeads(req, res) {
   try {
@@ -640,71 +528,64 @@ export async function exportLeads(req, res) {
     res.status(500).json({ success: false, message: err.message });
   }
 }
+const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
 
-export async function importLeads(req, res) {
-  try {
-    if (!req.file || !req.file.buffer) {
-      return res.status(400).json({
-        success: false,
-        message: "Excel file required",
-      });
-    }
+async function processImportedSheet(buffer, branchId, userId, createdBy) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const sheet = workbook.worksheets[0];
 
-    // Load workbook from buffer
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
-    const sheet = workbook.worksheets[0];
+  if (!sheet) {
+    return { success: false, message: "Invalid Excel sheet" };
+  }
 
-    if (!sheet) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Excel sheet",
-      });
-    }
+  const headers = [];
+  sheet.getRow(1).eachCell((cell, col) => {
+    headers[col] = val(cell.value);
+  });
 
-    // READ HEADERS
-    const headers = [];
-    sheet.getRow(1).eachCell((cell, colNumber) => {
-      headers[colNumber] = String(cell.value || "").trim();
+  let imported = 0;
+  let updated = 0;
+  let failed = 0;
+  let errors = [];
+
+  for (let r = 2; r <= sheet.rowCount; r++) {
+    const row = sheet.getRow(r);
+    const rowData = {};
+
+    row.eachCell((cell, col) => {
+      rowData[headers[col]] = val(cell.value);
     });
 
-    let imported = 0;
-    const errors = [];
+    const phone = rowData.phone;
+    if (!phone) {
+      failed++;
+      errors.push({ row: r, error: "Phone number missing" });
+      continue;
+    }
 
-    // READ EACH ROW
-    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
-      const row = sheet.getRow(rowNumber);
-      const rowData = {};
-
-      row.eachCell((cell, colNumber) => {
-        rowData[headers[colNumber]] = cell.value;
+    try {
+      const existingLead = await LeadModel.findOne({
+        "personalInfo.phone": phone
       });
 
-      // REQUIRED FIELDS
-      if (!rowData.name || !rowData.phone) {
-        errors.push({ row: rowNumber, error: "Missing required Name/Phone" });
-        continue;
-      }
-
-      const DEFAULT_BRANCH = "676f326dff3ede0000000000";
-
-      const leadObj = {
+      const leadData = {
         personalInfo: {
           name: rowData.name,
-          email: rowData.email || "",
+          email: rowData.email,
           phone: rowData.phone,
-          alternatePhone: rowData.alternatePhone || "",
-          city: rowData.city || "",
-          state: rowData.state || "",
-          country: rowData.country || "",
-          pincode: rowData.pincode || "",
+          alternatePhone: rowData.alternatePhone,
+          city: rowData.city,
+          state: rowData.state,
+          country: rowData.country,
+          pincode: rowData.pincode,
         },
 
         leadSource: rowData.leadSource || "google",
         segment: rowData.segment || "stock_equity",
 
         investmentSize: {
-          amount: rowData.investmentAmount || 0,
+          amount: Number(rowData.investmentAmount) || 0,
           currency: rowData.investmentCurrency || "INR",
           remark: rowData.investmentRemark || "",
         },
@@ -712,40 +593,93 @@ export async function importLeads(req, res) {
         status: rowData.status || "new",
         priority: rowData.priority || "medium",
 
-        branch: rowData.branchId || DEFAULT_BRANCH,
-        assignedTo: rowData.assignedToId || null,
+        branch: branchId,
+        assignedTo: userId || null,
 
         tags: rowData.tags
-          ? String(rowData.tags).split(",").map(t => t.trim())
+          ? rowData.tags.split(",").map((t) => t.trim())
           : [],
 
-        followUpDate: rowData.followUpDate
-          ? new Date(rowData.followUpDate)
-          : null,
-
-        createdBy: req.user._id,
+        followUpDate: rowData.followUpDate ? new Date(rowData.followUpDate) : null,
+        createdBy,
       };
 
-      try {
-        await LeadModel.create(leadObj);
+      if (existingLead) {
+        await LeadModel.updateOne({ _id: existingLead._id }, { $set: leadData });
+        updated++;
+      } else {
+        await LeadModel.create(leadData);
         imported++;
-      } catch (err) {
-        errors.push({ row: rowNumber, error: err.message });
       }
+
+    } catch (err) {
+      failed++;
+      errors.push({ row: r, error: err.message });
+    }
+  }
+
+  return {
+    success: true,
+    imported,
+    updated,
+    failed,
+    errors,
+  };
+}
+
+export async function importLeads(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Excel file required" });
     }
 
-    return res.json({
-      success: true,
-      imported,
-      failed: errors.length,
-      errors,
-    });
+    const DEFAULT_BRANCH = "676f326dff3ede0000000000";
+
+    const result = await processImportedSheet(
+      req.file.buffer,
+      DEFAULT_BRANCH,
+      null,
+      req.user._id
+    );
+
+    return res.json(result);
 
   } catch (err) {
     console.log("IMPORT ERROR:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 }
+
+export async function importUserLeads(req, res) {
+  try {
+    const { branchId, userId } = req.params;
+
+    if (!branchId || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: "Branch ID and User ID are required",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Excel file required" });
+    }
+
+    const result = await processImportedSheet(
+      req.file.buffer,
+      branchId,
+      userId,
+      req.user._id
+    );
+
+    return res.json(result);
+
+  } catch (err) {
+    console.log("IMPORT USER LEADS ERROR:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 
 
 
