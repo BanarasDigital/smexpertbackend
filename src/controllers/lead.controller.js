@@ -431,16 +431,140 @@ export async function exportLeadTemplate(req, res) {
     res.status(500).json({ success: false, message: err.message });
   }
 }
+export async function importUserLeads(req, res) {
+  try {
+    const { branchId, userId } = req.params;
+
+    if (!branchId || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: "Branch ID and User ID are required.",
+      });
+    }
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: "Excel file required",
+      });
+    }
+
+    // LOAD WORKBOOK
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+    const sheet = workbook.worksheets[0];
+
+    if (!sheet) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Excel format",
+      });
+    }
+
+    // READ HEADERS
+    const headers = [];
+    sheet.getRow(1).eachCell((cell, colNumber) => {
+      headers[colNumber] = String(cell.value || "").trim();
+    });
+
+    let imported = 0;
+    let errors = [];
+
+    // PROCESS ROWS
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
+      const row = sheet.getRow(rowNumber);
+
+      const rowData = {};
+      row.eachCell((cell, colNumber) => {
+        const header = headers[colNumber];
+        rowData[header] = cell.value;
+      });
+
+      // REQUIRED FIELDS
+      if (!rowData.name || !rowData.phone || !rowData.leadSource || !rowData.segment) {
+        errors.push({ row: rowNumber, error: "Missing required fields" });
+        continue;
+      }
+
+      const lead = {
+        personalInfo: {
+          name: rowData.name,
+          email: rowData.email,
+          phone: rowData.phone,
+          alternatePhone: rowData.alternatePhone,
+          city: rowData.city,
+          state: rowData.state,
+          country: rowData.country,
+          pincode: rowData.pincode,
+        },
+
+        leadSource: rowData.leadSource,
+        segment: rowData.segment,
+
+        investmentSize: {
+          amount: rowData.investmentAmount || 0,
+          currency: rowData.investmentCurrency || "INR",
+          remark: rowData.investmentRemark || "",
+        },
+
+        status: rowData.status || "new",
+        priority: rowData.priority || "medium",
+
+        // 🔥 ASSIGN BRANCH & USER FROM PARAMS
+        branch: branchId,
+        assignedTo: userId,
+
+        tags: rowData.tags
+          ? String(rowData.tags).split(",").map((t) => t.trim())
+          : [],
+
+        followUpDate: rowData.followUpDate ? new Date(rowData.followUpDate) : null,
+
+        createdBy: req.user._id,
+      };
+
+      try {
+        await LeadModel.create(lead);
+        imported++;
+      } catch (err) {
+        errors.push({ row: rowNumber, error: err.message });
+      }
+    }
+
+    return res.json({
+      success: true,
+      imported,
+      failed: errors.length,
+      errors,
+    });
+
+  } catch (err) {
+    console.log("IMPORT ERROR:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
 
 export async function exportLeads(req, res) {
   try {
-    const leads = await LeadModel.find()
+    const { branchId, assignedTo } = req.query;
+
+    const query = {};
+
+    if (branchId && branchId !== "all") {
+      query.branch = branchId;
+    }
+
+    if (assignedTo && assignedTo !== "all") {
+      query.assignedTo = assignedTo;
+    }
+
+    const leads = await LeadModel.find(query)
       .populate("assignedTo")
       .populate("branch")
       .lean();
 
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Leads");
+    const sheet = workbook.addWorksheet("Filtered Leads");
 
     sheet.columns = [
       { header: "name", key: "name", width: 20 },
@@ -504,7 +628,11 @@ export async function exportLeads(req, res) {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-    res.setHeader("Content-Disposition", "attachment; filename=leads.xlsx");
+
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=filtered-leads.xlsx"
+    );
 
     await workbook.xlsx.write(res);
     res.end();
@@ -515,75 +643,114 @@ export async function exportLeads(req, res) {
 
 export async function importLeads(req, res) {
   try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: "Excel file required" });
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: "Excel file required",
+      });
     }
 
+    // Load workbook from buffer
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(req.file.buffer);
     const sheet = workbook.worksheets[0];
 
-    const rows = [];
-    sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
-      rows.push(row.values);
+    if (!sheet) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Excel sheet",
+      });
+    }
+
+    // READ HEADERS
+    const headers = [];
+    sheet.getRow(1).eachCell((cell, colNumber) => {
+      headers[colNumber] = String(cell.value || "").trim();
     });
 
     let imported = 0;
-    let errors = [];
+    const errors = [];
 
-    for (const r of rows) {
+    // READ EACH ROW
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
+      const row = sheet.getRow(rowNumber);
+      const rowData = {};
+
+      row.eachCell((cell, colNumber) => {
+        rowData[headers[colNumber]] = cell.value;
+      });
+
+      // REQUIRED FIELDS
+      if (!rowData.name || !rowData.phone) {
+        errors.push({ row: rowNumber, error: "Missing required Name/Phone" });
+        continue;
+      }
+
+      const DEFAULT_BRANCH = "676f326dff3ede0000000000";
+
+      const leadObj = {
+        personalInfo: {
+          name: rowData.name,
+          email: rowData.email || "",
+          phone: rowData.phone,
+          alternatePhone: rowData.alternatePhone || "",
+          city: rowData.city || "",
+          state: rowData.state || "",
+          country: rowData.country || "",
+          pincode: rowData.pincode || "",
+        },
+
+        leadSource: rowData.leadSource || "google",
+        segment: rowData.segment || "stock_equity",
+
+        investmentSize: {
+          amount: rowData.investmentAmount || 0,
+          currency: rowData.investmentCurrency || "INR",
+          remark: rowData.investmentRemark || "",
+        },
+
+        status: rowData.status || "new",
+        priority: rowData.priority || "medium",
+
+        branch: rowData.branchId || DEFAULT_BRANCH,
+        assignedTo: rowData.assignedToId || null,
+
+        tags: rowData.tags
+          ? String(rowData.tags).split(",").map(t => t.trim())
+          : [],
+
+        followUpDate: rowData.followUpDate
+          ? new Date(rowData.followUpDate)
+          : null,
+
+        createdBy: req.user._id,
+      };
+
       try {
-        if (!r[1] || !r[3]) continue; // name or phone missing → skip row
-
-        const lead = {
-          personalInfo: {
-            name: r[1],
-            email: r[2],
-            phone: r[3],
-            alternatePhone: r[4],
-            city: r[5],
-            state: r[6],
-            country: r[7],
-            pincode: r[8],
-          },
-          leadSource: r[9],
-          segment: r[10],
-
-          investmentSize: {
-            amount: r[11],
-            currency: r[12] || "INR",
-            remark: r[13],
-          },
-
-          status: r[14],
-          priority: r[15],
-
-          branch: r[16] || null,
-          assignedTo: r[17] || null,
-
-          tags: r[18] ? r[18].split(",").map((x) => x.trim()) : [],
-          followUpDate: r[19] ? new Date(r[19]) : null,
-
-          createdBy: req.user._id,
-        };
-
-        await LeadModel.create(lead);
+        await LeadModel.create(leadObj);
         imported++;
       } catch (err) {
-        errors.push({ row: r, error: err.message });
+        errors.push({ row: rowNumber, error: err.message });
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       imported,
       failed: errors.length,
       errors,
     });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.log("IMPORT ERROR:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 }
+
+
+
+
+
+
 
 

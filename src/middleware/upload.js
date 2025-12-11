@@ -42,46 +42,63 @@ const diskStorage = multer.diskStorage({
     cb(null, `${nowUid()}-${safe}${ext}`);
   },
 });
-const EXT_ALLOW =
-  /\.(jpe?g|png|gif|webp|mp4|mov|avi|mkv|pdf|ppt|pptx|txt|mp3|wav|m4a|csv)$/i;
+const EXT_ALLOW = new Set([
+  ".jpg", ".jpeg", ".png", ".gif", ".webp",
+  ".mp4", ".mov", ".avi", ".mkv",
+  ".pdf", ".ppt", ".pptx", ".txt", ".mp3", ".wav", ".m4a",
+  ".csv", ".doc", ".docx", ".xls", ".xlsx",
+  ".zip", ".rar", ".7z", ".json", ".yaml", ".yml"
+]);
 
 const MIME_ALLOW = new Set([
-  // images
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  // video
-  "video/mp4",
-  "video/quicktime",
-  "video/x-msvideo",
-  "video/x-matroska",
-  // docs
+  "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp",
+  "video/mp4", "video/quicktime", "video/x-msvideo", "video/x-matroska",
   "application/pdf",
   "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "text/plain",
-  // audio
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/mp4",
-  "audio/m4a",
-    // CSV
-  "text/csv",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // Excel
   "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/octet-stream", // Fallback for unknown Excel MIME
+  "text/csv",
+  "application/json",
+  "application/zip",
+  "application/x-rar-compressed",
+  "application/x-7z-compressed",
+  "text/plain",
 ]);
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  if (EXT_ALLOW.test(ext) && MIME_ALLOW.has(file.mimetype))
+  const type = file.mimetype;
+
+  // ✅ Check extension
+  if (!EXT_ALLOW.has(ext)) {
+    console.warn("❌ FILE REJECTED: Unsupported extension:", ext, file.originalname);
+    return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname));
+  }
+
+  // ✅ Force Excel MIME if extension is valid but MIME is missing or incorrect
+  if ((ext === ".xls" || ext === ".xlsx") && !MIME_ALLOW.has(type)) {
+    file.mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    console.log("ℹ️ FORCED EXCEL MIME:", file.originalname);
     return cb(null, true);
-  return cb(
-    new multer.MulterError("LIMIT_UNEXPECTED_FILE", "Invalid file type")
-  );
+  }
+
+  // ✅ Final MIME check
+  if (!MIME_ALLOW.has(type)) {
+    console.warn("❌ FILE REJECTED: Invalid MIME type:", type, file.originalname);
+    return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname));
+  }
+
+  console.log("✅ FILE ACCEPTED:", file.originalname, "->", type);
+  return cb(null, true);
 };
+
+
+
 const MAX_FILE_SIZE = Number(
   process.env.UPLOAD_MAX_FILE_BYTES ?? 100 * 1024 * 1024
 );
@@ -93,6 +110,7 @@ const createMulter = (maxFileSize = MAX_FILE_SIZE) =>
     limits: { fileSize: maxFileSize },
   });
 const resolveFolder = (fieldname, mimetype) => {
+  // Author & course special cases
   if (fieldname === "profileImage") return "users/profileImages";
   if (fieldname === "groupImage") return "users/groupImages";
   if (fieldname === "image") return "courses/images";
@@ -102,38 +120,73 @@ const resolveFolder = (fieldname, mimetype) => {
   if (fieldname === "blogAImages") return "blogs/authorImages";
   if (/^content-image-\d+/.test(fieldname)) return "blogs/contentBlocks";
   if (/^course-image/.test(fieldname)) return "courses/contentBlocks";
+
   if (fieldname?.startsWith?.("content-image")) return "modules/images";
   if (fieldname?.startsWith?.("content-audio")) return "modules/audios";
   if (fieldname?.startsWith?.("content-video")) return "modules/videos";
   if (fieldname?.startsWith?.("content-pdf")) return "modules/pdfs";
+
   if (fieldname === "file" || fieldname === "files") {
+
     if (mimetype.startsWith("image/")) return "chats/images";
     if (mimetype.startsWith("video/")) return "chats/videos";
     if (mimetype.startsWith("audio/")) return "chats/audios";
+
+    // PDF
     if (mimetype === "application/pdf") return "chats/pdfs";
+
+    // PowerPoint
     if (
       mimetype === "application/vnd.ms-powerpoint" ||
-      mimetype ===
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      mimetype === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
       return "chats/presentations";
+    if (
+      mimetype === "application/vnd.ms-excel" ||
+      mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      mimetype === "application/octet-stream"
+    ) return "chats/excel";
+
+    // CSV
+    if (mimetype === "text/csv") return "chats/excel";
+
+    // TXT
     if (mimetype === "text/plain") return "chats/text";
+
+    // Default for other file types
     return "chats/others";
   }
+
+  // ==============================
+  // 🔥 UPLOADS FOR OTHER MODULES
+  // ==============================
   if (mimetype.startsWith("image/")) return "uploads/images";
   if (mimetype.startsWith("video/")) return "uploads/videos";
   if (mimetype.startsWith("audio/")) return "uploads/audios";
   if (mimetype === "application/pdf") return "uploads/pdfs";
+
+  // PowerPoint
   if (
     mimetype === "application/vnd.ms-powerpoint" ||
-    mimetype ===
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    mimetype === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
   )
     return "uploads/presentations";
+
+  // Excel
+  if (
+    mimetype === "application/vnd.ms-excel" ||
+    mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mimetype === "application/octet-stream"
+  )
+    return "uploads/excel";
+
   if (mimetype === "text/plain") return "uploads/text";
-if (fieldname === "paymentImage") return "payments/images"; 
+
+  if (fieldname === "paymentImage") return "payments/images";
+
   return "uploads/others";
 };
+
 export const getUploadMiddleware = (fieldConfig = null, maxFileSize) => {
   const instance = createMulter(maxFileSize);
   return fieldConfig ? instance.fields(fieldConfig) : instance.any();
@@ -168,8 +221,8 @@ const cleanupAll = async (files = []) => {
 };
 export const uploadChatAny = getUploadMiddleware(
   [
-    { name: "file", maxCount: 1 }, 
-    { name: "files", maxCount: 10 }, 
+    { name: "file", maxCount: 1 },
+    { name: "files", maxCount: 10 },
   ],
   MAX_FILE_SIZE
 );

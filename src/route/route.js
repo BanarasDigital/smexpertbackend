@@ -77,7 +77,7 @@ import validateUser from "../middleware/validateUser.middleware.js";
 
 import groupSchema from "../schema/groupConversationSchema/group.conversation.schema.js";
 import { userLoginSchema, userRegisterSchema } from "../schema/user.schema.js";
-import { addNote, bulkAssign, createLead, deleteLead, deleteNote, editNote, exportLeads, exportLeadTemplate, filterLeads, getLeadById, getLeadNotes, getLeads, getLeadsByUser, importLeads, updateFollowUp, updateLead, updateLeadStatus } from "../controllers/lead.controller.js";
+import { addNote, bulkAssign, createLead, deleteLead, deleteNote, editNote, exportLeads, exportLeadTemplate, filterLeads, getLeadById, getLeadNotes, getLeads, getLeadsByUser, importLeads, importUserLeads, updateFollowUp, updateLead, updateLeadStatus } from "../controllers/lead.controller.js";
 import excelUpload from "../middleware/excelUpload.js";
 
 const routeFunc = (app) => {
@@ -241,6 +241,12 @@ const routeFunc = (app) => {
   app.put("/lead/:leadId/notes/:noteId", requireUser, editNote);
   app.delete("/lead/:leadId/notes/:noteId", requireUser, deleteNote);
   app.put("/lead/:id/status", requireUser, updateLeadStatus);
+app.post(
+  "/lead/import/:branchId/:userId",
+  requireUser,
+  excelUpload.single("file"),
+  importUserLeads
+);
 
 
 
