@@ -1,9 +1,5 @@
 import { decodeTokenByJwt } from "../utils/utils.jwt.js";
 
-/**
- * Protects a route with JWT. On success sets req.user.
- * Fails with 401 (no crashes on malformed tokens).
- */
 export const authGuard = async (req, res, next) => {
   try {
     const auth = req.headers.authorization || req.headers.Authorization;
