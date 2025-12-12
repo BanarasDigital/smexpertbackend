@@ -530,7 +530,7 @@ export async function exportLeads(req, res) {
 }
 const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
 
-async function processImportedSheet(buffer, branchId, userId, createdBy) {
+async function processImportedSheet(buffer, branchId, userId, createdBy, saveToDB = false) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const sheet = workbook.worksheets[0];
@@ -545,7 +545,7 @@ async function processImportedSheet(buffer, branchId, userId, createdBy) {
   });
 
   let imported = 0;
-  let updated = 0;
+  let duplicates = 0;
   let failed = 0;
   let errors = [];
 
@@ -565,9 +565,16 @@ async function processImportedSheet(buffer, branchId, userId, createdBy) {
     }
 
     try {
+      // check if duplicate exists
       const existingLead = await LeadModel.findOne({
-        "personalInfo.phone": phone
+        "personalInfo.phone": phone,
       });
+
+      if (existingLead) {
+        duplicates++;
+        errors.push({ row: r, error: "Duplicate lead found", phone });
+        continue; // ❌ do NOT insert/update
+      }
 
       const leadData = {
         personalInfo: {
@@ -604,13 +611,12 @@ async function processImportedSheet(buffer, branchId, userId, createdBy) {
         createdBy,
       };
 
-      if (existingLead) {
-        await LeadModel.updateOne({ _id: existingLead._id }, { $set: leadData });
-        updated++;
-      } else {
+      // ⚠️ Only save when saveToDB = true
+      if (saveToDB) {
         await LeadModel.create(leadData);
-        imported++;
       }
+
+      imported++;
 
     } catch (err) {
       failed++;
@@ -621,35 +627,46 @@ async function processImportedSheet(buffer, branchId, userId, createdBy) {
   return {
     success: true,
     imported,
-    updated,
+    duplicates,
     failed,
     errors,
   };
 }
 
+
 export async function importLeads(req, res) {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "Excel file required" });
+      return res.status(400).json({
+        success: false,
+        message: "Excel file required",
+      });
     }
 
     const DEFAULT_BRANCH = "676f326dff3ede0000000000";
+    const DEFAULT_ASSIGNED_TO = null;
 
     const result = await processImportedSheet(
       req.file.buffer,
       DEFAULT_BRANCH,
-      null,
-      req.user._id
+      DEFAULT_ASSIGNED_TO,
+      req.user._id,
+      true  // saveToDB
     );
 
-    return res.json(result);
+    return res.json({
+      success: true,
+      imported: result.imported,
+      duplicates: result.duplicates,
+      failed: result.failed,
+      errors: result.errors,
+    });
 
   } catch (err) {
     console.log("IMPORT ERROR:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 }
-
 export async function importUserLeads(req, res) {
   try {
     const { branchId, userId } = req.params;
@@ -662,23 +679,35 @@ export async function importUserLeads(req, res) {
     }
 
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "Excel file required" });
+      return res.status(400).json({
+        success: false,
+        message: "Excel file required",
+      });
     }
 
     const result = await processImportedSheet(
       req.file.buffer,
       branchId,
       userId,
-      req.user._id
+      req.user._id,
+      true // save to DB
     );
 
-    return res.json(result);
+    return res.json({
+      success: true,
+      imported: result.imported,
+      duplicates: result.duplicates,
+      failed: result.failed,
+      errors: result.errors,
+    });
 
   } catch (err) {
     console.log("IMPORT USER LEADS ERROR:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 }
+
+
 
 
 
