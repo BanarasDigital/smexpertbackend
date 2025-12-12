@@ -436,78 +436,52 @@ export async function exportLeads(req, res) {
   try {
     const { branchId, assignedTo } = req.query;
 
-    const query = {};
+    let filter = {};
 
-    if (branchId && branchId !== "all") {
-      query.branch = branchId;
+    // ✔ If branch selected
+    if (branchId && branchId !== "null") {
+      filter.branch = branchId;
     }
 
-    if (assignedTo && assignedTo !== "all") {
-      query.assignedTo = assignedTo;
+    // ✔ If user selected
+    if (assignedTo && assignedTo !== "null") {
+      filter.assignedTo = assignedTo;
     }
 
-    const leads = await LeadModel.find(query)
-      .populate("assignedTo")
-      .populate("branch")
-      .lean();
+    // ✔ If neither selected → filter = {} → exports ALL
+    const leads = await LeadModel.find(filter).populate("branch assignedTo");
 
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Filtered Leads");
+    const sheet = workbook.addWorksheet("Leads");
 
     sheet.columns = [
-      { header: "name", key: "name", width: 20 },
-      { header: "email", key: "email", width: 25 },
-      { header: "phone", key: "phone", width: 15 },
-      { header: "alternatePhone", key: "alternatePhone", width: 15 },
-      { header: "city", key: "city", width: 15 },
-      { header: "state", key: "state", width: 15 },
-      { header: "country", key: "country", width: 15 },
-      { header: "pincode", key: "pincode", width: 10 },
-
-      { header: "leadSource", key: "leadSource", width: 15 },
-      { header: "segment", key: "segment", width: 20 },
-
-      { header: "investmentAmount", key: "investmentAmount", width: 15 },
-      { header: "investmentCurrency", key: "investmentCurrency", width: 10 },
-      { header: "investmentRemark", key: "investmentRemark", width: 25 },
-
-      { header: "status", key: "status", width: 15 },
-      { header: "priority", key: "priority", width: 10 },
-
-      { header: "branchId", key: "branch", width: 24 },
-      { header: "assignedToId", key: "assignedTo", width: 24 },
-
-      { header: "tags", key: "tags", width: 25 },
-      { header: "followUpDate", key: "followUpDate", width: 20 },
+      { header: "Name", key: "name", width: 20 },
+      { header: "Email", key: "email", width: 25 },
+      { header: "Phone", key: "phone", width: 15 },
+      { header: "City", key: "city", width: 15 },
+      { header: "Lead Source", key: "leadSource", width: 15 },
+      { header: "Segment", key: "segment", width: 15 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Priority", key: "priority", width: 12 },
+      { header: "Branch", key: "branch", width: 20 },
+      { header: "Assigned To", key: "assignedTo", width: 20 },
+      { header: "Follow Up", key: "followUpDate", width: 15 },
     ];
 
-    leads.forEach((lead) => {
+    leads.forEach((l) => {
       sheet.addRow({
-        name: lead.personalInfo?.name,
-        email: lead.personalInfo?.email,
-        phone: lead.personalInfo?.phone,
-        alternatePhone: lead.personalInfo?.alternatePhone,
-        city: lead.personalInfo?.city,
-        state: lead.personalInfo?.state,
-        country: lead.personalInfo?.country,
-        pincode: lead.personalInfo?.pincode,
-
-        leadSource: lead.leadSource,
-        segment: lead.segment,
-
-        investmentAmount: lead.investmentSize?.amount,
-        investmentCurrency: lead.investmentSize?.currency,
-        investmentRemark: lead.investmentSize?.remark,
-
-        status: lead.status,
-        priority: lead.priority,
-
-        branch: lead.branch?._id?.toString(),
-        assignedTo: lead.assignedTo?._id?.toString(),
-
-        tags: lead.tags?.join(","),
-        followUpDate: lead.followUpDate
-          ? lead.followUpDate.toISOString().slice(0, 10)
+        name: l.personalInfo?.name || "",
+        email: l.personalInfo?.email || "",
+        phone: l.personalInfo?.phone || "",
+        city: l.personalInfo?.city || "",
+        leadSource: l.leadSource,
+        segment: l.segment,
+        status: l.status,
+        priority: l.priority,
+        branch: l.branch?.name || "",
+        assignedTo: l.assignedTo?.name || "",
+        followUpDate: l.followUpDate
+          ? l.followUpDate.toISOString().slice(0, 10)
           : "",
       });
     });
@@ -516,18 +490,20 @@ export async function exportLeads(req, res) {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=filtered-leads.xlsx"
+      "attachment; filename=leads.xlsx"
     );
 
-    await workbook.xlsx.write(res);
-    res.end();
+    const buffer = await workbook.xlsx.writeBuffer();
+    return res.send(buffer);
+
   } catch (err) {
+    console.log("EXPORT ERROR:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 }
+
 const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
 
 async function processImportedSheet(buffer, branchId, userId, createdBy, saveToDB = false) {
