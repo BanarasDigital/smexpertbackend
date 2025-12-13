@@ -728,6 +728,28 @@ const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
 
 const normalizePhone = (p = "") => p.replace(/\D/g, "").slice(-10);
 const normalizeEmail = (e = "") => e.trim().toLowerCase();
+const normalizeLeadSource = (value = "") => {
+  const v = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_"); // "cold call" → "cold_call"
+
+  const MAP = {
+    facebook: "fb",
+    fb: "fb",
+    instagram: "ig",
+    ig: "ig",
+    google: "google",
+    website: "website",
+    referral: "referral",
+    cold_call: "cold_call",
+    coldcall: "cold_call",
+    linkedin: "linkedin",
+    twitter: "twitter",
+  };
+
+  return MAP[v] || "other";
+};
 
 async function processImportedSheet(
   buffer,
@@ -742,15 +764,19 @@ async function processImportedSheet(
   const sheet = workbook.worksheets[0];
   if (!sheet) return { success: false, message: "Invalid Excel file" };
 
-  const HEADER_MAP = {
-    name: "name",
-    phone: "phone",
-    email: "email",
-    city: "city",
-    state: "state",
-    segment: "segment",
-    leadsource: "leadSource",
-  };
+const HEADER_MAP = {
+  name: "name",
+  phone: "phone",
+  email: "email",
+  city: "city",
+  state: "state",
+  segment: "segment",
+  leadsource: "leadSource",
+  lead_source: "leadSource",
+  "lead source": "leadSource",
+  leadsource_: "leadSource",
+};
+
 
   const headers = [];
   sheet.getRow(1).eachCell((cell, col) => {
@@ -808,19 +834,7 @@ async function processImportedSheet(
         ? rowData.segment
         : "other";
 
-      const safeSource = [
-        "fb",
-        "ig",
-        "google",
-        "website",
-        "referral",
-        "cold_call",
-        "linkedin",
-        "twitter",
-        "other",
-      ].includes(rowData.leadsource)
-        ? rowData.leadsource
-        : "other";
+     const safeSource = normalizeLeadSource(rowData.leadSource);
 
       const leadData = {
         personalInfo: {
@@ -839,6 +853,7 @@ async function processImportedSheet(
         assignedTo: userId || null,
         createdBy,
       };
+
 
       if (saveToDB) {
         const saved = await LeadModel.create(leadData);
@@ -890,7 +905,7 @@ export async function importLeads(req, res) {
       duplicates: result.duplicates,
       failed: result.failed,
       errors: result.errors,
-      leads: result.insertedLeads, 
+      leads: result.insertedLeads,
     });
   } catch (err) {
     return res.status(500).json({

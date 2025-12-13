@@ -44,6 +44,7 @@ const LeadSchema = new mongoose.Schema(
         "other",
       ],
       lowercase: true,
+      default: "other",
     },
 
     segment: {
