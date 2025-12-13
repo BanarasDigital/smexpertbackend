@@ -749,11 +749,12 @@ async function processImportedSheet(
     city: "city",
     state: "state",
     segment: "segment",
+    leadsource: "leadSource",
   };
 
   const headers = [];
   sheet.getRow(1).eachCell((cell, col) => {
-    headers[col] = HEADER_MAP[val(cell.value)] || val(cell.value).toLowerCase();
+    headers[col] = HEADER_MAP[val(cell.value).toLowerCase()] || val(cell.value).toLowerCase();
   });
 
   let imported = 0;
@@ -770,9 +771,9 @@ async function processImportedSheet(
       rowData[headers[col]] = val(cell.value);
     });
 
-    if (!rowData.phone) {
+    if (!rowData.phone || !rowData.name) {
       failed++;
-      errors.push({ row: r, error: "Missing phone number" });
+      errors.push({ row: r, error: "Name or phone missing" });
       continue;
     }
 
@@ -793,15 +794,47 @@ async function processImportedSheet(
         continue;
       }
 
+      // ✅ ENUM-SAFE DEFAULTS
+      const safeSegment = [
+        "bank_nifty_option",
+        "stock_future",
+        "stock_equity",
+        "commodity",
+        "forex",
+        "crypto",
+        "mutual_funds",
+        "other",
+      ].includes(rowData.segment)
+        ? rowData.segment
+        : "other";
+
+      const safeSource = [
+        "fb",
+        "ig",
+        "google",
+        "website",
+        "referral",
+        "cold_call",
+        "linkedin",
+        "twitter",
+        "other",
+      ].includes(rowData.leadsource)
+        ? rowData.leadsource
+        : "other";
+
       const leadData = {
         personalInfo: {
-          name: rowData.name || "Unknown",
+          name: rowData.name,
           phone,
           email,
           city: rowData.city || "",
           state: rowData.state || "",
+          country: "India",
         },
-        segment: rowData.segment || "general",
+        leadSource: safeSource,
+        segment: safeSegment,
+        status: "new",
+        priority: "medium",
         branch: branchId,
         assignedTo: userId || null,
         createdBy,
@@ -828,6 +861,7 @@ async function processImportedSheet(
     insertedLeads,
   };
 }
+
 
 
 export async function importLeads(req, res) {
