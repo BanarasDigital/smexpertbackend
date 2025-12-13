@@ -241,12 +241,12 @@ const routeFunc = (app) => {
   app.put("/lead/:leadId/notes/:noteId", requireUser, editNote);
   app.delete("/lead/:leadId/notes/:noteId", requireUser, deleteNote);
   app.put("/lead/:id/status", requireUser, updateLeadStatus);
-app.post(
-  "/lead/import/:branchId/:userId",
-  requireUser,
-  excelUpload.single("file"),
-  importUserLeads
-);
+  app.post(
+    "/lead/import/:branchId/:userId",
+    requireUser,
+    excelUpload.single("file"),
+    importUserLeads
+  );
 
 
 
