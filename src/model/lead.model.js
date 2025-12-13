@@ -32,7 +32,6 @@ const LeadSchema = new mongoose.Schema(
 
     leadSource: {
       type: String,
-      required: [true, "Lead source is required"],
       enum: [
         "fb",
         "ig",
@@ -49,7 +48,6 @@ const LeadSchema = new mongoose.Schema(
 
     segment: {
       type: String,
-      required: [true, "Segment is required"],
       enum: [
         "bank_nifty_option",
         "stock_future",
@@ -107,7 +105,6 @@ const LeadSchema = new mongoose.Schema(
     branch: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
-      required: true,
     },
 
     assignedTo: {
