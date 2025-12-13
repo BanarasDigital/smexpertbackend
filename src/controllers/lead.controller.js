@@ -1,18 +1,18 @@
 import LeadModel from "../model/lead.model.js";
 import ExcelJS from "exceljs";
 function normalizeAssignedTo(assignedTo) {
-    if (
-        !assignedTo ||
-        assignedTo === "" ||
-        assignedTo === null ||
-        assignedTo === undefined ||
-        (Array.isArray(assignedTo) && assignedTo.length === 0) ||
-        (typeof assignedTo === "object" && !Array.isArray(assignedTo) && Object.keys(assignedTo).length === 0) ||
-        (typeof assignedTo === "object" && !Array.isArray(assignedTo) && assignedTo._id === undefined)
-    ) {
-        return null;
-    }
-    return assignedTo;
+  if (
+    !assignedTo ||
+    assignedTo === "" ||
+    assignedTo === null ||
+    assignedTo === undefined ||
+    (Array.isArray(assignedTo) && assignedTo.length === 0) ||
+    (typeof assignedTo === "object" && !Array.isArray(assignedTo) && Object.keys(assignedTo).length === 0) ||
+    (typeof assignedTo === "object" && !Array.isArray(assignedTo) && assignedTo._id === undefined)
+  ) {
+    return null;
+  }
+  return assignedTo;
 }
 
 // ➤ CREATE LEAD
@@ -330,7 +330,7 @@ export async function bulkAssign(req, res) {
     if (!req.user) {
       return res.status(401).json({ success: false, message: "Login required." });
     }
-    const allowedTypes = ["admin"]; 
+    const allowedTypes = ["admin"];
     if (!allowedTypes.includes(req.user.user_type)) {
       console.log("❌ Unauthorized User Type:", req.user.user_type);
       return res.status(403).json({ success: false, message: "Only admin can bulk assign" });
@@ -725,42 +725,43 @@ export async function exportLeads(req, res) {
 
 
 const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
-async function processImportedSheet(buffer, branchId, userId, createdBy, saveToDB = false) {
+
+const normalizePhone = (p = "") => p.replace(/\D/g, "").slice(-10);
+const normalizeEmail = (e = "") => e.trim().toLowerCase();
+
+async function processImportedSheet(
+  buffer,
+  branchId,
+  userId,
+  createdBy,
+  saveToDB = false
+) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
 
   const sheet = workbook.worksheets[0];
   if (!sheet) return { success: false, message: "Invalid Excel file" };
+
   const HEADER_MAP = {
-    "name": "name",
-    "Name": "name",
-
-    "contact number": "phone",
-    "Contact Number": "phone",
-    "Phone": "phone",
-    "phone number": "phone",
-    "Phone Number": "phone",
-
-    "city": "city",
-    "City": "city",
-
-    "state": "state",
-    "State": "state",
-
-    "segment": "segment",
-    "Segment": "segment",
+    name: "name",
+    phone: "phone",
+    email: "email",
+    city: "city",
+    state: "state",
+    segment: "segment",
   };
 
   const headers = [];
   sheet.getRow(1).eachCell((cell, col) => {
-    const header = val(cell.value);
-    headers[col] = HEADER_MAP[header] || header.toLowerCase();
+    headers[col] = HEADER_MAP[val(cell.value)] || val(cell.value).toLowerCase();
   });
 
   let imported = 0;
   let duplicates = 0;
   let failed = 0;
-  let errors = [];
+  const errors = [];
+  const insertedLeads = [];
+
   for (let r = 2; r <= sheet.rowCount; r++) {
     const row = sheet.getRow(r);
     const rowData = {};
@@ -768,54 +769,66 @@ async function processImportedSheet(buffer, branchId, userId, createdBy, saveToD
     row.eachCell((cell, col) => {
       rowData[headers[col]] = val(cell.value);
     });
+
     if (!rowData.phone) {
       failed++;
       errors.push({ row: r, error: "Missing phone number" });
       continue;
     }
 
+    const phone = normalizePhone(rowData.phone);
+    const email = normalizeEmail(rowData.email);
+
     try {
       const exists = await LeadModel.findOne({
-        "personalInfo.phone": rowData.phone,
+        $or: [
+          { "personalInfo.phone": phone },
+          email ? { "personalInfo.email": email } : null,
+        ].filter(Boolean),
       });
 
       if (exists) {
         duplicates++;
-        errors.push({ row: r, phone: rowData.phone, error: "Duplicate lead" });
+        errors.push({ row: r, phone, email, error: "Duplicate lead" });
         continue;
       }
+
       const leadData = {
         personalInfo: {
-          name: rowData.name || "",
-          phone: rowData.phone,
+          name: rowData.name || "Unknown",
+          phone,
+          email,
           city: rowData.city || "",
           state: rowData.state || "",
         },
-
         segment: rowData.segment || "general",
         branch: branchId,
         assignedTo: userId || null,
         createdBy,
       };
+
       if (saveToDB) {
-        await LeadModel.create(leadData);
+        const saved = await LeadModel.create(leadData);
+        insertedLeads.push(saved);
       }
 
       imported++;
-
     } catch (err) {
       failed++;
       errors.push({ row: r, error: err.message });
     }
   }
+
   return {
     success: true,
     imported,
     duplicates,
     failed,
     errors,
+    insertedLeads,
   };
 }
+
 
 export async function importLeads(req, res) {
   try {
@@ -843,16 +856,16 @@ export async function importLeads(req, res) {
       duplicates: result.duplicates,
       failed: result.failed,
       errors: result.errors,
+      leads: result.insertedLeads, 
     });
-
   } catch (err) {
-    console.log("IMPORT ERROR:", err);
     return res.status(500).json({
       success: false,
       message: err.message,
     });
   }
 }
+
 
 
 
