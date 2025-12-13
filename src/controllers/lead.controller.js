@@ -732,7 +732,7 @@ const normalizeLeadSource = (value = "") => {
   const v = String(value)
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, "_"); // "cold call" → "cold_call"
+    .replace(/\s+/g, "_"); 
 
   const MAP = {
     facebook: "fb",
