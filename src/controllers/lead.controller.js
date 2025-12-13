@@ -724,15 +724,204 @@ export async function exportLeads(req, res) {
 // }
 
 
+// const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
+
+// const normalizePhone = (p = "") => p.replace(/\D/g, "").slice(-10);
+// const normalizeEmail = (e = "") => e.trim().toLowerCase();
+// const normalizeLeadSource = (value = "") => {
+//   const v = String(value)
+//     .trim()
+//     .toLowerCase()
+//     .replace(/\s+/g, "_"); 
+
+//   const MAP = {
+//     facebook: "fb",
+//     fb: "fb",
+//     instagram: "ig",
+//     ig: "ig",
+//     google: "google",
+//     website: "website",
+//     referral: "referral",
+//     cold_call: "cold_call",
+//     coldcall: "cold_call",
+//     linkedin: "linkedin",
+//     twitter: "twitter",
+//   };
+
+//   return MAP[v] || "other";
+// };
+
+// async function processImportedSheet(
+//   buffer,
+//   branchId,
+//   userId,
+//   createdBy,
+//   saveToDB = false
+// ) {
+//   const workbook = new ExcelJS.Workbook();
+//   await workbook.xlsx.load(buffer);
+
+//   const sheet = workbook.worksheets[0];
+//   if (!sheet) return { success: false, message: "Invalid Excel file" };
+
+// const HEADER_MAP = {
+//   name: "name",
+//   phone: "phone",
+//   email: "email",
+//   city: "city",
+//   state: "state",
+//   segment: "segment",
+//   leadsource: "leadSource",
+//   lead_source: "leadSource",
+//   "lead source": "leadSource",
+//   leadsource_: "leadSource",
+// };
+
+
+//   const headers = [];
+//   sheet.getRow(1).eachCell((cell, col) => {
+//     headers[col] = HEADER_MAP[val(cell.value).toLowerCase()] || val(cell.value).toLowerCase();
+//   });
+
+//   let imported = 0;
+//   let duplicates = 0;
+//   let failed = 0;
+//   const errors = [];
+//   const insertedLeads = [];
+
+//   for (let r = 2; r <= sheet.rowCount; r++) {
+//     const row = sheet.getRow(r);
+//     const rowData = {};
+
+//     row.eachCell((cell, col) => {
+//       rowData[headers[col]] = val(cell.value);
+//     });
+
+//     if (!rowData.phone || !rowData.name) {
+//       failed++;
+//       errors.push({ row: r, error: "Name or phone missing" });
+//       continue;
+//     }
+
+//     const phone = normalizePhone(rowData.phone);
+//     const email = normalizeEmail(rowData.email);
+
+//     try {
+//       const exists = await LeadModel.findOne({
+//         $or: [
+//           { "personalInfo.phone": phone },
+//           email ? { "personalInfo.email": email } : null,
+//         ].filter(Boolean),
+//       });
+
+//       if (exists) {
+//         duplicates++;
+//         errors.push({ row: r, phone, email, error: "Duplicate lead" });
+//         continue;
+//       }
+
+//       // ✅ ENUM-SAFE DEFAULTS
+//       const safeSegment = [
+//         "bank_nifty_option",
+//         "stock_future",
+//         "stock_equity",
+//         "commodity",
+//         "forex",
+//         "crypto",
+//         "mutual_funds",
+//         "other",
+//       ].includes(rowData.segment)
+//         ? rowData.segment
+//         : "other";
+
+//      const safeSource = normalizeLeadSource(rowData.leadSource);
+
+//       const leadData = {
+//         personalInfo: {
+//           name: rowData.name,
+//           phone,
+//           email,
+//           city: rowData.city || "",
+//           state: rowData.state || "",
+//           country: "India",
+//         },
+//         leadSource: safeSource,
+//         segment: safeSegment,
+//         status: "new",
+//         priority: "medium",
+//         branch: branchId,
+//         assignedTo: userId || null,
+//         createdBy,
+//       };
+
+
+//       if (saveToDB) {
+//         const saved = await LeadModel.create(leadData);
+//         insertedLeads.push(saved);
+//       }
+
+//       imported++;
+//     } catch (err) {
+//       failed++;
+//       errors.push({ row: r, error: err.message });
+//     }
+//   }
+
+//   return {
+//     success: true,
+//     imported,
+//     duplicates,
+//     failed,
+//     errors,
+//     insertedLeads,
+//   };
+// }
+
+
+
+// export async function importLeads(req, res) {
+//   try {
+//     if (!req.file) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Excel file required",
+//       });
+//     }
+
+//     const DEFAULT_BRANCH = "676f326dff3ede0000000000";
+//     const DEFAULT_ASSIGNED_TO = null;
+
+//     const result = await processImportedSheet(
+//       req.file.buffer,
+//       DEFAULT_BRANCH,
+//       DEFAULT_ASSIGNED_TO,
+//       req.user._id,
+//       true
+//     );
+
+//     return res.json({
+//       success: true,
+//       imported: result.imported,
+//       duplicates: result.duplicates,
+//       failed: result.failed,
+//       errors: result.errors,
+//       leads: result.insertedLeads,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message,
+//     });
+//   }
+// }
+
 const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
 
 const normalizePhone = (p = "") => p.replace(/\D/g, "").slice(-10);
 const normalizeEmail = (e = "") => e.trim().toLowerCase();
+
 const normalizeLeadSource = (value = "") => {
-  const v = String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_"); 
+  const v = String(value).trim().toLowerCase().replace(/\s+/g, "_");
 
   const MAP = {
     facebook: "fb",
@@ -751,6 +940,17 @@ const normalizeLeadSource = (value = "") => {
   return MAP[v] || "other";
 };
 
+const SAFE_SEGMENTS = [
+  "bank_nifty_option",
+  "stock_future",
+  "stock_equity",
+  "commodity",
+  "forex",
+  "crypto",
+  "mutual_funds",
+  "other",
+];
+
 async function processImportedSheet(
   buffer,
   branchId,
@@ -764,23 +964,35 @@ async function processImportedSheet(
   const sheet = workbook.worksheets[0];
   if (!sheet) return { success: false, message: "Invalid Excel file" };
 
-const HEADER_MAP = {
-  name: "name",
-  phone: "phone",
-  email: "email",
-  city: "city",
-  state: "state",
-  segment: "segment",
-  leadsource: "leadSource",
-  lead_source: "leadSource",
-  "lead source": "leadSource",
-  leadsource_: "leadSource",
-};
+  const HEADER_MAP = {
+    name: "name",
+    phone: "phone",
+    email: "email",
+    city: "city",
+    state: "state",
+    country: "country",
+    pincode: "pincode",
+    segment: "segment",
+    leadsource: "leadSource",
+    lead_source: "leadSource",
+    "lead source": "leadSource",
 
+    investmentamount: "investmentAmount",
+    investmentcurrency: "investmentCurrency",
+    investmentremark: "investmentRemark",
+
+    status: "status",
+    priority: "priority",
+    tags: "tags",
+    followupdate: "followUpDate",
+    alternatephone: "alternatePhone",
+  };
 
   const headers = [];
   sheet.getRow(1).eachCell((cell, col) => {
-    headers[col] = HEADER_MAP[val(cell.value).toLowerCase()] || val(cell.value).toLowerCase();
+    headers[col] =
+      HEADER_MAP[val(cell.value).toLowerCase()] ||
+      val(cell.value).toLowerCase();
   });
 
   let imported = 0;
@@ -820,40 +1032,45 @@ const HEADER_MAP = {
         continue;
       }
 
-      // ✅ ENUM-SAFE DEFAULTS
-      const safeSegment = [
-        "bank_nifty_option",
-        "stock_future",
-        "stock_equity",
-        "commodity",
-        "forex",
-        "crypto",
-        "mutual_funds",
-        "other",
-      ].includes(rowData.segment)
-        ? rowData.segment
-        : "other";
-
-     const safeSource = normalizeLeadSource(rowData.leadSource);
-
       const leadData = {
         personalInfo: {
           name: rowData.name,
-          phone,
           email,
+          phone,
+          alternatePhone: rowData.alternatePhone || "",
           city: rowData.city || "",
           state: rowData.state || "",
-          country: "India",
+          country: rowData.country || "India",
+          pincode: rowData.pincode || "",
         },
-        leadSource: safeSource,
-        segment: safeSegment,
-        status: "new",
-        priority: "medium",
-        branch: branchId,
+
+        leadSource: normalizeLeadSource(rowData.leadSource),
+
+        segment: SAFE_SEGMENTS.includes(rowData.segment)
+          ? rowData.segment
+          : "other",
+
+        investmentSize: {
+          amount: Number(rowData.investmentAmount) || 0,
+          currency: rowData.investmentCurrency || "INR",
+          remark: rowData.investmentRemark || "",
+        },
+
+        status: rowData.status || "new",
+        priority: rowData.priority || "medium",
+
+        tags: rowData.tags
+          ? rowData.tags.split(",").map((t) => t.trim())
+          : [],
+
+        followUpDate: rowData.followUpDate
+          ? new Date(rowData.followUpDate)
+          : null,
+
+        branch: branchId || null,
         assignedTo: userId || null,
         createdBy,
       };
-
 
       if (saveToDB) {
         const saved = await LeadModel.create(leadData);
@@ -876,9 +1093,6 @@ const HEADER_MAP = {
     insertedLeads,
   };
 }
-
-
-
 export async function importLeads(req, res) {
   try {
     if (!req.file) {
@@ -888,7 +1102,7 @@ export async function importLeads(req, res) {
       });
     }
 
-    const DEFAULT_BRANCH = "676f326dff3ede0000000000";
+    const DEFAULT_BRANCH = null;        // admin import
     const DEFAULT_ASSIGNED_TO = null;
 
     const result = await processImportedSheet(
@@ -905,9 +1119,11 @@ export async function importLeads(req, res) {
       duplicates: result.duplicates,
       failed: result.failed,
       errors: result.errors,
-      leads: result.insertedLeads,
+      leads: result.insertedLeads || [],   // ✅ IMPORTANT
     });
+
   } catch (err) {
+    console.error("IMPORT ERROR:", err);
     return res.status(500).json({
       success: false,
       message: err.message,
