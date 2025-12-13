@@ -724,283 +724,13 @@ export async function exportLeads(req, res) {
 // }
 
 
-// const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
-// async function processImportedSheet(buffer, branchId, userId, createdBy, saveToDB = false) {
-//   const workbook = new ExcelJS.Workbook();
-//   await workbook.xlsx.load(buffer);
-
-//   const sheet = workbook.worksheets[0];
-//   if (!sheet) return { success: false, message: "Invalid Excel file" };
-
-//   const HEADER_MAP = {
-//     "name": "name",
-//     "Name": "name",
-
-//     "contact number": "phone",
-//     "Contact Number": "phone",
-//     "Phone": "phone",
-//     "phone number": "phone",
-//     "Phone Number": "phone",
-
-//     "city": "city",
-//     "City": "city",
-
-//     "state": "state",
-//     "State": "state",
-
-//     "segment": "segment",
-//     "Segment": "segment",
-//   };
-
-//   const headers = [];
-//   sheet.getRow(1).eachCell((cell, col) => {
-//     const header = val(cell.value);
-//     headers[col] = HEADER_MAP[header] || header.toLowerCase();
-//   });
-
-//   let imported = 0;
-//   let duplicates = 0;
-//   let failed = 0;
-//   let errors = [];
-
-//   for (let r = 2; r <= sheet.rowCount; r++) {
-//     const row = sheet.getRow(r);
-//     const rowData = {};
-
-//     row.eachCell((cell, col) => {
-//       rowData[headers[col]] = val(cell.value);
-//     });
-
-//     if (!rowData.phone) {
-//       failed++;
-//       errors.push({ row: r, error: "Missing phone number" });
-//       continue;
-//     }
-
-//     try {
-//       const exists = await LeadModel.findOne({
-//         "personalInfo.phone": rowData.phone,
-//       });
-
-//       // 🔑 USER + BRANCH CONDITION ADDED
-//       if (exists) {
-//         let updated = false;
-
-//         if (!exists.branch && branchId) {
-//           exists.branch = branchId;
-//           updated = true;
-//         }
-
-//         if (!exists.assignedTo && userId) {
-//           exists.assignedTo = userId;
-//           updated = true;
-//         }
-
-//         if (updated && saveToDB) {
-//           exists.lastModifiedBy = createdBy;
-//           await exists.save();
-//         }
-
-//         duplicates++;
-//         errors.push({
-//           row: r,
-//           phone: rowData.phone,
-//           error: updated
-//             ? "Existing lead updated with branch/user"
-//             : "Duplicate lead",
-//         });
-
-//         continue;
-//       }
-
-//       // ➕ NEW LEAD (UNCHANGED LOGIC)
-//       const leadData = {
-//         personalInfo: {
-//           name: rowData.name || "",
-//           phone: rowData.phone,
-//           city: rowData.city || "",
-//           state: rowData.state || "",
-//         },
-//         segment: rowData.segment || "general",
-//         branch: branchId,
-//         assignedTo: userId || null,
-//         createdBy,
-//       };
-
-//       if (saveToDB) {
-//         await LeadModel.create(leadData);
-//       }
-
-//       imported++;
-
-//     } catch (err) {
-//       failed++;
-//       errors.push({ row: r, error: err.message });
-//     }
-//   }
-
-//   return {
-//     success: true,
-//     imported,
-//     duplicates,
-//     failed,
-//     errors,
-//   };
-// }
-
-
-// export async function importLeads(req, res) {
-//   try {
-//     if (!req.file) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Excel file required",
-//       });
-//     }
-
-//     const DEFAULT_BRANCH = "676f326dff3ede0000000000";
-//     const DEFAULT_ASSIGNED_TO = null;
-
-//     const result = await processImportedSheet(
-//       req.file.buffer,
-//       DEFAULT_BRANCH,
-//       DEFAULT_ASSIGNED_TO,
-//       req.user._id,
-//       true
-//     );
-
-//     return res.json({
-//       success: true,
-//       imported: result.imported,
-//       duplicates: result.duplicates,
-//       failed: result.failed,
-//       errors: result.errors,
-//     });
-
-//   } catch (err) {
-//     console.log("IMPORT ERROR:", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: err.message,
-//     });
-//   }
-// }
-
-
-
-// export async function importUserLeads(req, res) {
-//   try {
-//     const { branchId, userId } = req.params;
-
-//     if (!branchId || !userId) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Branch ID and User ID required",
-//       });
-//     }
-
-//     if (!req.file) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Excel file required",
-//       });
-//     }
-
-//     const result = await processImportedSheet(
-//       req.file.buffer,
-//       branchId,
-//       userId,
-//       req.user._id,
-//       true
-//     );
-
-//     return res.json({
-//       success: true,
-//       imported: result.imported,
-//       duplicates: result.duplicates,
-//       failed: result.failed,
-//       errors: result.errors,
-//     });
-
-//   } catch (err) {
-//     console.log("IMPORT USER LEADS ERROR:", err);
-//     return res.status(500).json({ success: false, message: err.message });
-//   }
-// }
-// export async function importUserLeads(req, res) {
-//   try {
-//     const { branchId, userId } = req.params;
-
-//     // 🔐 SECURITY CHECK
-//     if (
-//       req.user.user_type !== "admin" &&
-//       (
-//         String(req.user._id) !== String(userId) ||
-//         String(req.user.branch) !== String(branchId)
-//       )
-//     ) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Unauthorized import for this branch or user",
-//       });
-//     }
-
-//     if (!req.file) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Excel file required",
-//       });
-//     }
-
-//     const result = await processImportedSheet(
-//       req.file.buffer,
-//       branchId,
-//       userId,
-//       req.user._id,
-//       true
-//     );
-
-//     // ✅ VERIFY DATA EXISTS IN DB
-//     const insertedCount = await LeadModel.countDocuments({
-//       branch: branchId,
-//       assignedTo: userId,
-//       createdBy: req.user._id,
-//     });
-
-//     return res.json({
-//       success: true,
-//       imported: result.imported,
-//       duplicates: result.duplicates,
-//       failed: result.failed,
-//       insertedCount, // 👈 important
-//       errors: result.errors,
-//     });
-
-//   } catch (err) {
-//     console.error("IMPORT USER LEADS ERROR:", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: err.message,
-//     });
-//   }
-// }
-
 const val = (v) => (v === undefined || v === null ? "" : String(v).trim());
-
-async function processImportedSheet(
-  buffer,
-  branchId,
-  userId,
-  createdBy,
-  saveToDB = false,
-  isAdmin = false // 👈 NEW FLAG
-) {
+async function processImportedSheet(buffer, branchId, userId, createdBy, saveToDB = false) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
 
   const sheet = workbook.worksheets[0];
   if (!sheet) return { success: false, message: "Invalid Excel file" };
-
   const HEADER_MAP = {
     "name": "name",
     "Name": "name",
@@ -1031,7 +761,6 @@ async function processImportedSheet(
   let duplicates = 0;
   let failed = 0;
   let errors = [];
-
   for (let r = 2; r <= sheet.rowCount; r++) {
     const row = sheet.getRow(r);
     const rowData = {};
@@ -1039,7 +768,6 @@ async function processImportedSheet(
     row.eachCell((cell, col) => {
       rowData[headers[col]] = val(cell.value);
     });
-
     if (!rowData.phone) {
       failed++;
       errors.push({ row: r, error: "Missing phone number" });
@@ -1051,41 +779,11 @@ async function processImportedSheet(
         "personalInfo.phone": rowData.phone,
       });
 
-      // 🔁 EXISTING LEAD
       if (exists) {
-        let updated = false;
-
-        // ✅ AUTO-FIX ONLY FOR NON-ADMIN
-        if (!isAdmin) {
-          if (!exists.branch && branchId) {
-            exists.branch = branchId;
-            updated = true;
-          }
-
-          if (!exists.assignedTo && userId) {
-            exists.assignedTo = userId;
-            updated = true;
-          }
-        }
-
-        if (updated && saveToDB) {
-          exists.lastModifiedBy = createdBy;
-          await exists.save();
-        }
-
         duplicates++;
-        errors.push({
-          row: r,
-          phone: rowData.phone,
-          error: updated
-            ? "Existing lead updated with branch/user"
-            : "Duplicate lead",
-        });
-
+        errors.push({ row: r, phone: rowData.phone, error: "Duplicate lead" });
         continue;
       }
-
-      // ➕ NEW LEAD
       const leadData = {
         personalInfo: {
           name: rowData.name || "",
@@ -1093,16 +791,12 @@ async function processImportedSheet(
           city: rowData.city || "",
           state: rowData.state || "",
         },
+
         segment: rowData.segment || "general",
+        branch: branchId,
+        assignedTo: userId || null,
         createdBy,
       };
-
-      // ✅ FORCE ASSIGN ONLY FOR NON-ADMIN
-      if (!isAdmin) {
-        leadData.branch = branchId;
-        leadData.assignedTo = userId || null;
-      }
-
       if (saveToDB) {
         await LeadModel.create(leadData);
       }
@@ -1114,7 +808,6 @@ async function processImportedSheet(
       errors.push({ row: r, error: err.message });
     }
   }
-
   return {
     success: true,
     imported,
@@ -1123,6 +816,7 @@ async function processImportedSheet(
     errors,
   };
 }
+
 export async function importLeads(req, res) {
   try {
     if (!req.file) {
@@ -1132,13 +826,15 @@ export async function importLeads(req, res) {
       });
     }
 
+    const DEFAULT_BRANCH = "676f326dff3ede0000000000";
+    const DEFAULT_ASSIGNED_TO = null;
+
     const result = await processImportedSheet(
       req.file.buffer,
-      null,           // ❌ no branch forced
-      null,           // ❌ no user forced
+      DEFAULT_BRANCH,
+      DEFAULT_ASSIGNED_TO,
       req.user._id,
-      true,
-      true            // 👈 isAdmin = true
+      true
     );
 
     return res.json({
@@ -1157,6 +853,9 @@ export async function importLeads(req, res) {
     });
   }
 }
+
+
+
 export async function importUserLeads(req, res) {
   try {
     const { branchId, userId } = req.params;
@@ -1180,8 +879,7 @@ export async function importUserLeads(req, res) {
       branchId,
       userId,
       req.user._id,
-      true,
-      false           // 👈 isAdmin = false
+      true
     );
 
     return res.json({
@@ -1194,12 +892,10 @@ export async function importUserLeads(req, res) {
 
   } catch (err) {
     console.log("IMPORT USER LEADS ERROR:", err);
-    return res.status(500).json({
-      success: false,
-      message: err.message,
-    });
+    return res.status(500).json({ success: false, message: err.message });
   }
 }
+
 
 
 
