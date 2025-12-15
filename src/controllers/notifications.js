@@ -38,7 +38,10 @@ export async function sendByProjectId(req, res) {
         .json({ error: "projectId, title, message required" });
     }
 
-    const tokens = await DeviceToken.find({ projectId });
+    const tokens = projectId
+  ? await DeviceToken.find({ projectId })
+  : await DeviceToken.find({});
+
     const results = [];
 
     for (const t of tokens) {
