@@ -1,5 +1,4 @@
 import { GoogleAuth } from "google-auth-library";
-import fs from "fs";
 import fetch from "node-fetch";
 
 const KEY_FILE = process.env.SERVICE_ACCOUNT_KEY_PATH;
@@ -11,38 +10,28 @@ const auth = new GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/firebase.messaging"],
 });
 
-export async function getAccessToken() {
+async function getAccessToken() {
   const client = await auth.getClient();
   const res = await client.getAccessToken();
   if (!res || !res.token) throw new Error("Failed to get access token");
   return res.token;
 }
 
-export async function sendToToken(
-  token,
-  { title, body, data = {}, badge = 0 }
-) {
+/**
+ * ✅ DATA-ONLY FCM (APK SAFE)
+ */
+export async function sendToToken(token, payload) {
   const accessToken = await getAccessToken();
+
   const message = {
     message: {
       token,
-      notification: { title, body },
       android: {
         priority: "HIGH",
-        notification: {
-          channel_id: "default",
-          sound: "default",
-        },
       },
-      apns: {
-        payload: {
-          aps: {
-            badge,
-            sound: "default",
-          },
-        },
+      data: {
+        ...payload.data,
       },
-      data,
     },
   };
 
@@ -55,6 +44,5 @@ export async function sendToToken(
     body: JSON.stringify(message),
   });
 
-  const json = await res.json();
-  return json;
+  return res.json();
 }
