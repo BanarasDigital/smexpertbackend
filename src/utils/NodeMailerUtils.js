@@ -76,7 +76,7 @@ export const sendResetPasswordEmail = async (toEmail, otp) => {
         <!-- Header -->
         <div style="background:#0A1F44; padding:18px; text-align:center;">
           <h2 style="color:#fff; margin:0; font-size:22px; letter-spacing:1px; font-weight:600;">
-            NKD AND ASSOCIATES
+            SM EXPERT
           </h2>
         </div>
 
@@ -99,14 +99,14 @@ export const sendResetPasswordEmail = async (toEmail, otp) => {
 
           <div style="background:#f8f8f8; padding:12px; border-left:4px solid #0A1F44; border-radius:4px;">
             <p style="font-size:13px; margin:0; color:#555; line-height:1.5;">
-              If you did not request this password reset, please ignore this email or contact NKD AND ASSOCIATES support immediately.
+              If you did not request this password reset, please ignore this email or contact SM EXPERT support immediately.
             </p>
           </div>
         </div>
 
         <!-- Footer -->
         <div style="background:#f0f2f5; padding:18px; text-align:center; font-size:12px; color:#666;">
-          <p style="margin:4px 0;">© ${new Date().getFullYear()} NKD AND ASSOCIATES. All Rights Reserved.</p>
+          <p style="margin:4px 0;">© ${new Date().getFullYear()} SM EXPERT. All Rights Reserved.</p>
         </div>
 
       </div>
@@ -114,7 +114,7 @@ export const sendResetPasswordEmail = async (toEmail, otp) => {
     `;
 
     const mailOptions = {
-      from: `"NKD AND ASSOCIATES" <${process.env.MAIL_USER}>`,
+      from: `"SM EXPERT" <${process.env.MAIL_USER}>`,
       to: toEmail,
       subject: "Your Password Reset OTP",
       html: htmlTemplate,
