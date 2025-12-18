@@ -111,13 +111,21 @@ export async function deleteNote(req, res) {
 
     const lead = await LeadModel.findById(leadId);
     if (!lead) {
-      return res.status(404).json({
-        success: false,
-        message: "Lead not found",
-      });
+      return res.status(404).json({ success: false, message: "Lead not found" });
     }
 
-    lead.notes = lead.notes.filter((n) => n._id.toString() !== noteId);
+    const noteExists = lead.notes.some(
+      (n) => n._id.toString() === noteId
+    );
+
+    if (!noteExists) {
+      return res.status(404).json({ success: false, message: "Note not found" });
+    }
+
+    lead.notes = lead.notes.filter(
+      (n) => n._id.toString() !== noteId
+    );
+
     await lead.save();
 
     const updatedLead = await LeadModel.findById(leadId)
@@ -128,12 +136,11 @@ export async function deleteNote(req, res) {
       message: "Note deleted successfully",
       lead: updatedLead,
     });
-
   } catch (err) {
+    console.log("DELETE NOTE ERROR:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 }
-
 
 export async function editNote(req, res) {
   try {
@@ -141,23 +148,36 @@ export async function editNote(req, res) {
     const { content, type, status } = req.body;
 
     const lead = await LeadModel.findById(leadId);
-    if (!lead) return res.status(404).json({ success: false });
+    if (!lead) {
+      return res.status(404).json({ success: false, message: "Lead not found" });
+    }
 
     const note = lead.notes.id(noteId);
-    if (!note) return res.status(404).json({ success: false });
+    if (!note) {
+      return res.status(404).json({ success: false, message: "Note not found" });
+    }
 
-    note.content = content;
-    note.type = type;
-    note.status = status;
+    if (content !== undefined) note.content = content;
+    if (type !== undefined) note.type = type;
+    if (status !== undefined) note.status = status;
     note.updatedAt = new Date();
 
     await lead.save();
 
-    return res.json({ success: true });
+    const updatedLead = await LeadModel.findById(leadId)
+      .populate("notes.addedBy", "name email");
+
+    return res.json({
+      success: true,
+      message: "Note updated successfully",
+      lead: updatedLead,
+    });
   } catch (err) {
-    return res.status(500).json({ success: false });
+    console.log("EDIT NOTE ERROR:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 }
+
 
 
 export async function updateLeadStatus(req, res) {

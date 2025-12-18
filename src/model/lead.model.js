@@ -17,14 +17,29 @@ const NoteSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    updatedAt: {
+      type: Date,
+    },
     type: {
       type: String,
       enum: ["general", "follow_up", "meeting", "call", "email", "important"],
       default: "general",
     },
-  },
-  { _id: false }
+    status: {
+      type: String,
+      enum: [
+        "in_progress",
+        "interested",
+        "not_interested",
+        "follow_up",
+        "converted",
+        "dropped",
+      ],
+      default: "in_progress",
+    },
+  }
 );
+
 
 const LeadSchema = new mongoose.Schema(
   {
