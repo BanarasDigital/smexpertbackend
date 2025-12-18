@@ -105,78 +105,97 @@ export async function getLeadNotes(req, res) {
   }
 }
 
-export async function deleteNote(req, res) {
-  try {
-    const { leadId, noteId } = req.params;
-
-    const lead = await LeadModel.findById(leadId);
-    if (!lead) {
-      return res.status(404).json({ success: false, message: "Lead not found" });
-    }
-
-    const noteExists = lead.notes.some(
-      (n) => n._id.toString() === noteId
-    );
-
-    if (!noteExists) {
-      return res.status(404).json({ success: false, message: "Note not found" });
-    }
-
-    lead.notes = lead.notes.filter(
-      (n) => n._id.toString() !== noteId
-    );
-
-    await lead.save();
-
-    const updatedLead = await LeadModel.findById(leadId)
-      .populate("notes.addedBy", "name email");
-
-    return res.json({
-      success: true,
-      message: "Note deleted successfully",
-      lead: updatedLead,
-    });
-  } catch (err) {
-    console.log("DELETE NOTE ERROR:", err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-}
-
-export async function editNote(req, res) {
+export const editNote = async (req, res) => {
   try {
     const { leadId, noteId } = req.params;
     const { content, type, status } = req.body;
 
     const lead = await LeadModel.findById(leadId);
     if (!lead) {
-      return res.status(404).json({ success: false, message: "Lead not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Lead not found",
+      });
     }
 
-    const note = lead.notes.id(noteId);
+    const note = lead.notes.find(
+      (n) => n._id.toString() === noteId
+    );
+
     if (!note) {
-      return res.status(404).json({ success: false, message: "Note not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Note not found",
+      });
     }
 
+    // ✅ Update fields
     if (content !== undefined) note.content = content;
     if (type !== undefined) note.type = type;
     if (status !== undefined) note.status = status;
+
     note.updatedAt = new Date();
+    lead.lastModifiedBy = req.user._id;
 
     await lead.save();
-
-    const updatedLead = await LeadModel.findById(leadId)
-      .populate("notes.addedBy", "name email");
 
     return res.json({
       success: true,
       message: "Note updated successfully",
-      lead: updatedLead,
+      note,
     });
-  } catch (err) {
-    console.log("EDIT NOTE ERROR:", err);
-    return res.status(500).json({ success: false, message: err.message });
+  } catch (error) {
+    console.error("Edit note error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while editing note",
+    });
   }
-}
+};
+
+
+export const deleteNote = async (req, res) => {
+  try {
+    const { leadId, noteId } = req.params;
+
+    const lead = await LeadModel.findById(leadId);
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: "Lead not found",
+      });
+    }
+
+    const initialCount = lead.notes.length;
+
+    lead.notes = lead.notes.filter(
+      (n) => n._id.toString() !== noteId
+    );
+
+    if (lead.notes.length === initialCount) {
+      return res.status(404).json({
+        success: false,
+        message: "Note not found",
+      });
+    }
+
+    lead.lastModifiedBy = req.user._id;
+    await lead.save();
+
+    return res.json({
+      success: true,
+      message: "Note deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete note error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while deleting note",
+    });
+  }
+};
+
+
 
 
 
