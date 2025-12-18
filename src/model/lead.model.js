@@ -37,6 +37,7 @@ const NoteSchema = new mongoose.Schema(
       ],
       default: "in_progress",
     },
+     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
   }
 );
 
