@@ -131,11 +131,6 @@ const routeFunc = (app) => {
   app.post("/save-token",requireUser, saveToken);
   app.post("/send-by-project", sendByProjectId);
   app.post("/reset-badge", resetBadge);
-
-
-
-
-
   /* Groups */
   app.post(
     "/create-group",

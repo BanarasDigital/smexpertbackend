@@ -49,7 +49,7 @@ async function notifyLeadUsers({
       });
     }
   } catch (err) {
-    console.error("🔔 notifyLeadUsers error:", err.message);
+    console.error("notifyLeadUsers error:", err.message);
   }
 }
 
@@ -128,7 +128,7 @@ export async function createLead(req, res) {
 
     await notifyLeadUsers({
       lead,
-      title: "📌 New Lead Created",
+      title: "New Lead Created",
       body: lead.personalInfo?.name || "New lead added",
       data: {
         type: "lead_created",
@@ -302,7 +302,7 @@ export const editNote = async (req, res) => {
 
     await notifyLeadUsers({
       lead,
-      title: "✏️ Lead Note Updated",
+      title: "Lead Note Updated",
       body: content
         ? content.slice(0, 80)
         : "A note was updated on this lead",
@@ -390,7 +390,7 @@ export async function updateLeadStatus(req, res) {
     if (updatedLead) {
       await notifyLeadUsers({
         lead: updatedLead,
-        title: "🔄 Lead Status Updated",
+        title: "Lead Status Updated",
         body: `Status changed to ${status}`,
         data: {
           type: "lead_status_updated",
@@ -602,7 +602,7 @@ export async function addNote(req, res) {
 
     await notifyLeadUsers({
       lead,
-      title: "📝 Lead Note Added",
+      title: "Lead Note Added",
       body: (content || "").slice(0, 80) || "A new note was added",
       data: {
         type: "lead_note_added",
@@ -826,7 +826,7 @@ export async function filterLeads(req, res) {
 
 export async function bulkAssign(req, res) {
   try {
-    console.log("🔥 /lead/bulk-assign HIT");
+    console.log("/lead/bulk-assign HIT");
     console.log("Request Body:", req.body);
     console.log("Current User:", req.user);
 
@@ -841,7 +841,7 @@ export async function bulkAssign(req, res) {
 
     const allowedTypes = ["admin"];
     if (!allowedTypes.includes(req.user.user_type)) {
-      console.log("❌ Unauthorized User Type:", req.user.user_type);
+      console.log("Unauthorized User Type:", req.user.user_type);
       return res.status(403).json({
         success: false,
         message: "Only admin can bulk assign",
@@ -862,7 +862,7 @@ export async function bulkAssign(req, res) {
       });
     }
 
-    console.log("📌 Updating DB...");
+    console.log("Updating DB...");
 
     await LeadModel.updateMany(
       { _id: { $in: leads } },
@@ -886,7 +886,7 @@ export async function bulkAssign(req, res) {
 
     await notifyLeadUsers({
       lead: leadLike,
-      title: "📌 New Lead Assigned",
+      title: "New Lead Assigned",
       body: `${updatedLeads.length} lead(s) assigned to you`,
       data: {
         type: "lead_assigned",
@@ -906,7 +906,7 @@ export async function bulkAssign(req, res) {
     });
 
   } catch (err) {
-    console.error("🔥 BULK ASSIGN ERROR:", err);
+    console.error("BULK ASSIGN ERROR:", err);
     return res.status(500).json({
       success: false,
       message: err.message,
