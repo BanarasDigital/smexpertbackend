@@ -58,11 +58,9 @@ export const sendMessage = async (req, res) => {
       receiverId,
       message,
     });
-
-    /* 🔢 BADGE COUNT (UNREAD MESSAGES) */
     const unreadCount = await Message.countDocuments({
       receiverId,
-      isRead: false, // make sure this field exists
+      isRead: false, 
     });
 
     const tokens = await DeviceToken.find({

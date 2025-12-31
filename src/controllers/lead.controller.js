@@ -2,7 +2,6 @@ import DeviceToken from "../model/DeviceToken.js";
 import LeadModel from "../model/lead.model.js";
 import ExcelJS from "exceljs";
 import { sendToToken } from "../utils/fcmClient.js";
-
 async function notifyLeadUsers({
   lead,
   title,
@@ -11,37 +10,49 @@ async function notifyLeadUsers({
   notifyAdmins = true,
   notifyAssigned = true,
 }) {
-  const tokenSet = new Set();
+  try {
+    const tokenSet = new Set();
 
-  if (notifyAssigned && lead?.assignedTo?._id) {
-    const userTokens = await DeviceToken.find({
-      "meta.userId": lead.assignedTo._id.toString(),
-    }).lean();
+    const assignedUserId =
+      lead?.assignedTo?._id ||
+      lead?.assignedTo ||
+      null;
 
-    for (const t of userTokens) if (t?.token) tokenSet.add(t.token);
-  }
+    if (notifyAssigned && assignedUserId) {
+      const userTokens = await DeviceToken.find({
+        "meta.userId": assignedUserId.toString(),
+      }).lean();
 
-  if (notifyAdmins) {
-    const adminTokens = await DeviceToken.find({
-      "meta.userType": "admin",
-    }).lean();
+      for (const t of userTokens) {
+        if (t?.token) tokenSet.add(t.token);
+      }
+    }
 
-    for (const t of adminTokens) if (t?.token) tokenSet.add(t.token);
-  }
+    if (notifyAdmins) {
+      const adminTokens = await DeviceToken.find({
+        "meta.userType": "admin",
+      }).lean();
 
-  for (const token of tokenSet) {
-    await sendToToken(token, {
-      data: {
-        title,
-        body,
-        ...data, 
-      },
-      android: {
-        priority: "high", 
-      },
-    });
+      for (const t of adminTokens) {
+        if (t?.token) tokenSet.add(t.token);
+      }
+    }
+
+    for (const token of tokenSet) {
+      await sendToToken(token, {
+        data: {
+          title,
+          body,
+          ...data,
+        },
+        android: { priority: "high" },
+      });
+    }
+  } catch (err) {
+    console.error("🔔 notifyLeadUsers error:", err.message);
   }
 }
+
 
 
 
@@ -125,7 +136,7 @@ export async function createLead(req, res) {
         leadUserId: lead.assignedTo?._id?.toString() || "",
       },
       notifyAdmins: true,
-      notifyAssigned: true, 
+      notifyAssigned: true,
     });
 
     return res.status(201).json({ success: true, lead });
@@ -289,7 +300,6 @@ export const editNote = async (req, res) => {
 
     await lead.save();
 
-    /* 🔔 NOTIFICATION: NOTE UPDATED */
     await notifyLeadUsers({
       lead,
       title: "✏️ Lead Note Updated",
@@ -300,8 +310,14 @@ export const editNote = async (req, res) => {
         type: "lead_note_updated",
         leadId,
         noteId,
+        content: content || "",
+        status,
+        adminOnly: "true", // ✅ REQUIRED
       },
+      notifyAdmins: true,
+      notifyAssigned: true,
     });
+
 
     return res.json({
       success: true,
@@ -582,17 +598,24 @@ export async function addNote(req, res) {
 
     await lead.save();
 
+    const note = lead.notes[lead.notes.length - 1];
+
     await notifyLeadUsers({
       lead,
       title: "📝 Lead Note Added",
       body: (content || "").slice(0, 80) || "A new note was added",
       data: {
         type: "lead_note_added",
-        leadId,
+        leadId: lead._id.toString(),
+        noteId: note._id.toString(),
+        content: content || "",
+        adminOnly: "true", // ✅ REQUIRED
       },
       notifyAdmins: true,
       notifyAssigned: true,
     });
+
+
 
     return res.json({
       success: true,
@@ -857,9 +880,8 @@ export async function bulkAssign(req, res) {
       .populate("branch", "name")
       .populate("assignedTo", "name email");
 
-    /* 🔔 FIXED FCM: LEAD ASSIGNED (STANDARDIZED) */
     const leadLike = {
-      assignedTo: { _id: userId },
+      assignedTo: userId,
     };
 
     await notifyLeadUsers({
@@ -871,9 +893,10 @@ export async function bulkAssign(req, res) {
         assignedTo: userId,
         count: String(updatedLeads.length),
       },
-      notifyAdmins: true,     // admin visibility
-      notifyAssigned: true,   // assigned user
+      notifyAdmins: true,
+      notifyAssigned: true,
     });
+
 
     return res.json({
       success: true,

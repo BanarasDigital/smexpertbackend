@@ -128,7 +128,7 @@ const routeFunc = (app) => {
   app.get("/admin/branches/:branchId/users", adminGetUsersByBranchIdController);
   app.get("/get-user-converstaion", requireUser, getUserConversations);
   /* Notifications */
-  app.post("/save-token", saveToken);
+  app.post("/save-token",requireUser, saveToken);
   app.post("/send-by-project", sendByProjectId);
   app.post("/reset-badge", resetBadge);
 

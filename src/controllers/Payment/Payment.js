@@ -185,35 +185,36 @@ export const createPayment = async (req, res) => {
       imageUrl: uploaded.url,
       createdByRole: isAdmin(req) ? "admin" : "user",
     });
-
-    // 🔔 Notify all admins if a regular user created a new payment
     if (!isAdmin(req)) {
-      const adminTokens = await DeviceToken.find({
-        "meta.userType": "admin",
-      }).lean();
+      const adminDevices = await DeviceToken.find({ "meta.userType": "admin" }).lean();
 
-      const userName = req.user?.name || "User";
-      const title = "💳 New Payment Created";
-      const body = `${userName} submitted a ₹${amt} payment via ${m}`;
-
-      for (const t of adminTokens) {
-        if (!t?.token) continue;
-
-        await sendToToken(t.token, {
-          data: {
-            title,
-            body,
-            type: "payment_created",
-            paymentId: doc._id.toString(),
-            amount: String(amt),
-            method: m,
-          },
-          android: {
-            priority: "high", // ✅ REQUIRED
-          },
-        });
+      if (!adminDevices?.length) {
+        console.log("No admin device tokens found for meta.userType=admin");
+      } else {
+        const userName = req.user?.name || "User";
+        const title = "New Payment Created";
+        const body = `${userName} submitted a ₹${doc.amount} payment via ${doc.method}`;
+        await Promise.allSettled(
+          adminDevices
+            .filter((d) => !!d?.token)
+            .map((d) =>
+              sendToToken(d.token, {
+                data: {
+                  title,
+                  body,
+                  type: "payment_created",
+                  paymentId: doc._id.toString(),
+                  amount: String(doc.amount),
+                  method: doc.method,
+                  userId: doc.userId.toString(),
+                },
+              })
+            )
+        );
       }
     }
+
+
 
     return res.status(201).json({ success: true, data: doc });
   } catch (err) {
